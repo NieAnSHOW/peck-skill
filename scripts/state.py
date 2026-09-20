@@ -192,23 +192,26 @@ def _quiet_range(state):
     q = state["user"].get("quiet_hours") or ["22:30", "07:00"]
     return _parse_hhmm(q[0]), _parse_hhmm(q[1])
 
-def _in_quiet(t, state, evening_only=False):
-    """免打扰区间判断（跨零点）：22:30–07:00 → t >= 22:30 或 t < 07:00。
-
-    tick 闸门与 stage 提前判定用 `evening_only=True`，只拦/只提前晚间段 [22:30, 24:00)。
-    """
+def _in_quiet(t, state):
+    """免打扰区间判断：晚间段 [22:30, 24:00) 与清晨段 [00:00, 07:00) 都算（PRD §4.2-3）。"""
     qs, qe = _quiet_range(state)
     if qs <= qe:                       # 非跨零点配置（如 13:00–15:00）：整段都算
         return qs <= t < qe
-    if t >= qs:                        # 跨零点区间的晚间段
-        return True
-    return (not evening_only) and t < qe    # 清晨段
+    return t >= qs or t < qe           # 跨零点：晚间段或清晨段
 
 def _last_sendable(day, state, tz):
-    """免打扰开始前最后一个可发 tick（30 分钟网格），如 22:30 → 22:00。"""
+    """晚间免打扰开始前最后一个可发 tick（30 分钟网格），如 22:30 → 22:00。"""
     qs, _ = _quiet_range(state)
     last = (qs.hour * 60 + qs.minute - 1) // TICK_GRID_MIN * TICK_GRID_MIN
     return datetime.combine(day, time(last // 60, last % 60), tzinfo=tz)
+
+def _quiet_clamp(nominal, state, tz):
+    """strict 档 stage 名义时刻撞免打扰时的落点（PRD §4.2-3）：
+    清晨段 → 免打扰结束（窗口开启提醒顺延至 ≥max(窗口起, quiet_end)）；晚间段 → 免打扰前最后一个 tick。"""
+    qs, qe = _quiet_range(state)
+    if qs <= qe or nominal.time() < qe:
+        return datetime.combine(nominal.date(), qe, tzinfo=tz)
+    return _last_sendable(nominal.date(), state, tz)
 
 def _rounds(habit, day, level, tz):
     """该档位当日的轮次表 [(stage, 名义时刻, mood)]。"""
@@ -230,12 +233,12 @@ def _due_rounds(habit, now, level, sent, tz, state):
     for stage, nominal, mood in _rounds(habit, now.date(), level, tz):
         if stage in sent:
             continue
-        if _in_quiet(nominal.time(), state, evening_only=True):
-            # PRD §4.2-3：名义时刻落入免打扰 → strict 提前至免打扰前最后一个 tick；
+        if _in_quiet(nominal.time(), state):
+            # PRD §4.2-3：名义时刻落入免打扰 → strict 顺延/提前到免打扰外的 tick；
             # 宽松/自由档作废（不提前、不补发）。
             if level != "strict":
                 continue
-            nominal = _last_sendable(nominal.date(), state, tz)
+            nominal = _quiet_clamp(nominal, state, tz)
         if nominal > now:
             continue
         ready.append((stage, mood))
@@ -267,7 +270,7 @@ def plan_tick(state, now):
     today = now.date()
     per = state["nudge_state"].get("per_habit_day", {})
     no_resp = state["nudge_state"].get("no_response_days", {})
-    quiet = _in_quiet(now.time(), state, evening_only=True)
+    quiet = _in_quiet(now.time(), state)
     actions = []
 
     for h in state["habits"]:
