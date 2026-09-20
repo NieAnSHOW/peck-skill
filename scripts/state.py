@@ -195,10 +195,7 @@ def _quiet_range(state):
 def _in_quiet(t, state, evening_only=False):
     """免打扰区间判断（跨零点）：22:30–07:00 → t >= 22:30 或 t < 07:00。
 
-    tick 闸门与 stage 提前判定用 `evening_only=True`，只拦/只提前晚间段 [22:30, 24:00)：
-    落在清晨段 [00:00, 07:00) 的 stage 只可能来自用户显式配置的 07:00 前窗口
-    （PRD §4.1 默认窗口 07:00–22:00），此时"窗口开启即提醒"正是用户要的
-    （判定表 test_strict_window_open_remind：06:00 窗口首轮 → remind）。
+    tick 闸门与 stage 提前判定用 `evening_only=True`，只拦/只提前晚间段 [22:30, 24:00)。
     """
     qs, qe = _quiet_range(state)
     if qs <= qe:                       # 非跨零点配置（如 13:00–15:00）：整段都算
@@ -299,11 +296,11 @@ def plan_tick(state, now):
                                 "slots": _slots(state, h, h.get("stats", {}).get("current_streak", 0),
                                                 deadline, _week_rate(h))})
 
-        # 4. 断链日结（仅 strict）：免打扰内照常产出——它是静默记账，用户可见的处刑在次日日报
+        # 4. 断链日结（仅 strict）：静默记账——免打扰豁免，且无 mood（不发消息、不配图）；
+        #    commit 时把 streak 归零。用户可见的处刑在周日公审周报（M2 起为次日日报）。
         if lvl == "strict" and due and not checked and now.time() >= DAY_CLOSE_TIME \
                 and "daily_close" not in sent:
             actions.append({"type": "daily_close", "habit_id": h["id"], "stage": "none",
-                            "mood": "disappointed",
                             "slots": _slots(state, h, h.get("stats", {}).get("current_streak", 0),
                                             deadline, _week_rate(h))})
 
@@ -357,6 +354,8 @@ def commit_tick(state, actions, now):
             if a["type"] == "level_down" and h is not None:
                 h["level"] = "chill"        # 降档落库（PRD §4.2-2）
                 log.append(f"level {a['habit_id']} -> chill")
+            elif a["type"] == "daily_close" and h is not None:
+                h["stats"]["current_streak"] = 0   # 断链归零（PRD §4.2：24:00 未打卡即断链）
 
     # 熔断计数：当日有 record 归 0，否则（当日首个 tick）累加
     for h in state["habits"]:

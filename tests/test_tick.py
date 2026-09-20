@@ -59,6 +59,17 @@ class TestTick(unittest.TestCase):
         closes = [a for a in acts if a["type"]=="daily_close"]
         self.assertTrue(closes)  # 当日 due 未打卡 → 断链日结动作
 
+    def test_daily_close_is_silent_bookkeeping(self):
+        st = mkstate("strict")
+        acts = plan_tick(st, t(23,50))
+        closes = [a for a in acts if a["type"]=="daily_close"]
+        self.assertTrue(closes)
+        for a in closes:
+            self.assertIn("slots", a)      # 静默记账仍带槽位（归档用）
+            self.assertNotIn("mood", a)    # 无 mood → 不渲染消息、不配图
+        commit_tick(st, acts, t(23,50))
+        self.assertEqual(st["habits"][0]["stats"]["current_streak"], 0)  # 断链归零（PRD §4.2）
+
     def test_weekly_report_saturday_ten(self):
         # 2026-09-26 是周六
         acts = plan_tick(mkstate("chill"), datetime(2026,9,26,10,0,tzinfo=TZ))

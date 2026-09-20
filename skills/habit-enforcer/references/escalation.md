@@ -27,18 +27,18 @@
 | `remind` | 窗口中点（`w_start` 与 `w_end` 中点）后的第一个 tick | `cute` | 调侃式提醒 |
 | `lastcall` | `w_end` − 1h（若落入免打扰则作废，见 §3） | `cute` | 最后一次问 |
 
-- 中点之前（如 06:00–22:00 窗口的 10:00）**不产出任何消息**。
+- 中点之前**不产出任何消息**；落入免打扰的轮次一律作废、不补发。
 - 单日错过不断链（周目标制，见 §6）。
 
 ### 报告类 stage（不受 4 条上限约束，独立计数）
 
 | 动作 | 时刻 | mood | 说明 |
 |---|---|---|---|
-| `daily_close` | 当日 due 且 23:30 后仍无 record | `disappointed` | 仅 strict：slot 含 streak 归零预告 |
+| `daily_close` | 当日 due 且 23:30 后仍无 record（免打扰豁免） | **无 mood 字段** | 仅 strict：**静默记账**——不发消息、不配图；`--commit` 时脚本把 `stats.current_streak` 归零（PRD §4.2「当日 24:00 未打卡即断链」） |
 | `weekly_report` | chill 周六 10:00–10:29 的第一个 tick；strict 周日 21:00 | chill→`celebrate`；strict→`angry`（公审） | 完成率 / streak 榜 / 最佳最差习惯 / 下周建议 |
 | `level_down` | 熔断触发时当轮 tick | `cute` | 见 §5 |
 
-已打卡的习惯当日不产出任何 `nudge`；daily_close 也只对「当日 due 且无 record」产生。
+已打卡的习惯当日不产出任何 `nudge`；`daily_close` 也只对「当日 due 且无 record」产生，且它只写状态、不产生消息。
 
 ## 2. 每日 ≤ 4 条（脚本保证）
 
@@ -49,7 +49,8 @@
 ## 3. 免打扰 22:30–07:00（最高优先级，可被 `user.quiet_hours` 覆盖）
 
 - 免打扰是跨零点区间：`22:30 <= t` 或 `t < 07:00` 均视为免打扰。
-- 期间**不主动发任何消息**：脚本在免打扰时段跳过一切 `nudge` / `daily_close` / `weekly_report` 产出。
+- 期间**不主动发任何消息**：脚本在免打扰时段跳过一切 `nudge` / `weekly_report` / `level_down` 产出。
+- **`daily_close` 是唯一豁免项**——它不对应任何 IM 消息（静默记账、断链归档），因此允许在免打扰内产出；你不得为它渲染消息。
 - 名义时刻落入免打扰（≥22:30）的处理：
   - **strict**：提前至 22:30 前最后一个可发 tick 发出；同一 tick 积压多个 stage 时**合并为最高优先级一条**，优先级 `final > warn > first > remind`（合并的那一条只消耗一个 stage 幂等位，被合并掉的 stage 不补发）。
   - **chill**：直接**作废**，不提前、不补发。
@@ -78,17 +79,17 @@
 
 `urge` / `praise` / `disappointed` / `angry` / `cute` / `celebrate`
 
-映射关系：nudge 用脚本给出的 `action.mood`；`daily_close` → `disappointed`；`weekly_report` → chill `celebrate` / strict `angry`；`level_down` → `cute`；打卡成功（habit-checkin 侧）→ `praise`。
+映射关系：nudge 用脚本给出的 `action.mood`；`weekly_report` → chill `celebrate` / strict `angry`；`level_down` → `cute`；打卡成功（habit-checkin 侧）→ `praise`；**`daily_close` 无 mood（不渲染消息、不配图）**。
 
 ## 8. 模板变量契约
 
-`{{name}}`（称呼）、`{{habit}}`（习惯名）、`{{streak}}`（当前连续天数）、`{{deadline}}`（窗口结束时刻）、`{{week_rate}}`（本周完成率）。填槽值一律取自 `action.slots`，字段名与变量名一一对应，缺失时回退到习惯默认值，不得改写变量名。
+`{{name}}`（称呼）、`{{habit}}`（习惯名）、`{{streak}}`（当前连续天数）、`{{deadline}}`（窗口结束时刻）、`{{week_rate}}`（本周完成率）。填槽值一律取自 `action.slots`，字段名与变量名一一对应，缺失时回退到习惯默认值，不得改写变量名。`daily_close` 的 slots 仅作归档，不用于渲染。
 
 ## 9. 操作员红线（快速自查）
 
 1. 先跑脚本，后选模板——不心算时间、不猜轮次。
 2. `actions` 为空则一个字符都不输出。
-3. 免打扰时段一条都不发。
+3. 免打扰时段一条主动消息都不发；`daily_close` 是静默记账，不是消息，不得为它发任何东西。
 4. 同一 stage 一天只发一次；不因投递失败重发。
 5. 超过 4 条的上限由脚本兜底，你不加判断也不绕过。
 6. 模板变量与 stage 名不得改名、不得新增。

@@ -2,6 +2,7 @@
 
 变量：{{name}} {{habit}} {{streak}} {{deadline}} {{week_rate}}
 规则：模板是骨架，可在语气细节上自由发挥，但不得偏离人设；同 stage 内轮换使用。
+`daily_close` 是静默记账（无 mood、不发消息），**没有模板**；strict 的断链处刑落在 `weekly_report` 公审模板里。
 
 ## 🔴 strict —— 教导主任
 - remind（urge）：{{name}}，{{habit}}的窗口开了，{{deadline}}关。我知道你看见了。
@@ -12,8 +13,8 @@
 - warn（disappointed）：我已经在写今天的评语了，希望不用写"{{name}}，{{habit}}，缺席"。
 - final（angry）：最后通牒。{{deadline}}后{{habit}}断链，明天日报见，{{name}}。
 - final（angry）：我数到三。三。{{habit}}！打卡！现在！
-- daily_close（disappointed）：记录在案：{{name}}今日{{habit}}未打卡，连续 {{streak}} 天清零。明日继续审。
 - weekly_report（angry）：本周公审：{{week_rate}}。哪些天在摸鱼我都有记录，下周别让我请家长。
+- weekly_report（angry）：记录在案：本周 {{week_rate}}。缺席的那几天我都记着，下周再这样我就请家长了。
 
 ## 🟡 chill —— 损友
 - remind（cute）：{{name}}～{{habit}}搞起？就差你这一下了(｡•ᴗ•｡)
