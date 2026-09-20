@@ -45,19 +45,20 @@
 | 文件系统 | ✅ 自托管，支持 workdir 绑定 | ✅ 自托管 | ✅ 桌面应用 |
 | 发图能力 | ✅ send_message/媒体投递 | ✅ 媒体投递 | ✅ 多模态（图片发送细节待接线时验证，有降级方案，见 §4.5） |
 
-**由此确定寄生架构**：skills 依赖宿主四项假设（H1 SKILL.md 支持 / H2 定时任务可按计划以 prompt+skills 唤醒 agent / H3 可向用户 IM 发文本与图片 / H4 有文件系统）。任何满足 H1–H4 的 Agent 产品均可接入；不满足者（如云端无文件系统的 Coze/Dify）不在 v1 范围。
+**由此确定寄生架构**：skills 依赖宿主四项假设（H1 SKILL.md 支持 / H2 定时任务可按计划以 prompt+skills 唤醒 agent / H3 可向用户 IM 发文本与图片 / H4 有文件系统），只编排宿主已有的三类工具动词——**发文本**（send_text/等效）、**发图**（send_media/等效）、**按计划唤醒**（schedule/cron/等效）——不自建任何 IM 网关、webhook 或消息协议适配器；微信/飞书/钉钉/Telegram 等协议细节完全由宿主处理。任何满足 H1–H4 的 Agent 产品均可接入；不满足者（如云端无文件系统的 Coze/Dify）不在 v1 范围。
 
 ### 2.3 表情包源现状（2026-09 实测）
 
 | 源 | 状态 | 结论 |
 |---|---|---|
 | Tenor API | ❌ **已停止服务**（官方公告） | 不可用 |
-| 斗图啦 doutula.com API | ❌ 实测连接失败，2019 年 API，新浪图床已死 | 不可用 |
-| fabiaoqing.com | ⚠️ 无官方 API，搜索路径实测不通，仅可爬页面 | 脆弱，不纳入 |
-| Giphy API | ✅ 官方免费 beta key，约 100 次/时 | 可选 provider（偏国际风 GIF） |
-| ALAPI 斗图接口 | ✅ 可用但需注册 token，有免费额度 | 可选 provider（中文梗图） |
+| 斗图啦 doutula.com API | ❌ 多轮实测超时（对照：同环境 baidu/Giphy 可达，已排除本机断网；2019 年老 API，图床为新浪外链早已失效） | 不可用 |
+| fabiaoqing.com | ⚠️ 无官方 API（站内无接口文档），搜索路径实测不通，仅可爬页面 | 脆弱，不纳入 |
+| Giphy API | ✅ API 端点实测可达（返回 403 = 公共演示 key 失效，服务在线）；官方免费 key 约 100 次/时 | 可选 provider（偏国际风 GIF） |
+| ALAPI 斗图接口 | ✅ 官方文档在线，可用但需注册 token，有免费额度 | 可选 provider（中文梗图） |
+| 字节跳动 cv-api 表情包搜索 | ✅ 官方文档在线，按量付费 | 可选 provider（v2 备选） |
 
-**结论**：内置本地表情包是唯一稳定底座；在线源做成可插拔 provider 并明示风险。表情包 API 行业死亡率高（两家头部已死），任何在线 provider 都必须可随时摘除。
+**结论**：免费表情包 API 生命周期极不可靠（头部服务 Tenor 官方停服、斗图啦实测不可达），在线源只做可插拔 provider 并明示"随时可死"。因此**内置本地表情包是唯一稳定底座**——这不是权宜，是架构决策：断网断源时监督互动不降级。
 
 ### 2.4 习惯方法论（档位设计的理论依据）
 
@@ -261,8 +262,7 @@ schema 细则（约束、默认值、校验清单）在 `docs/state-schema.md` �
 
 **情绪目录（6 类，固定枚举）**：`urge`(催促) `praise`(夸奖) `disappointed`(失望) `angry`(暴怒) `cute`(卖萌) `celebrate`(庆祝)
 
-**本地包规格**：
-- `assets/memes/<mood>/` 每类 ≥ 5 张，JPG/PNG/GIF，单张 ≤ 2MB（企微 base64 上限内）
+- `assets/memes/<mood>/` 每类 ≥ 5 张，JPG/PNG/GIF，单张 ≤ 2MB（主流 IM 附件上限内，宿主转发零转码）
 - `_index.json`：`{"file": "urge/03.jpg", "caption": "我看好你哦", "tags": ["催促","盯"]}`
 - 内置包**只收录自绘或 CC0 素材**（版权干净）；README 声明
 - `assets/memes/user/`：用户自备目录，丢图即生效（首次 tick 时由 agent 引导打标进 `_index.json`；未打标的图按目录名兜底归为 cute）
