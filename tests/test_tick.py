@@ -63,6 +63,15 @@ class TestTick(unittest.TestCase):
         self.assertEqual(nudges(plan_tick(st, t(10,0))), [])
         self.assertIn("lastcall", [a["stage"] for a in nudges(plan_tick(st, t(21,0)))])
 
+    def test_chill_quiet_hours_discard_no_pull_earlier(self):
+        st = mkstate("chill")
+        st["habits"][0]["schedule"]["window"] = ["21:00", "23:30"]  # lastcall 名义 22:30 撞免打扰
+        # PRD §4.2-3：chill 一律作废——不提前（22:00 不同于 strict 的提前补发）、不补发
+        for hm in [(22,0),(22,30),(23,0)]:
+            self.assertEqual(
+                [a["stage"] for a in nudges(plan_tick(st, t(*hm))) if a["stage"] == "lastcall"],
+                [], f"lastcall should be discarded at {hm}")
+
     def test_daily_close_breaks_streak_strict(self):
         st = mkstate("strict")
         acts = plan_tick(st, t(23,50))
