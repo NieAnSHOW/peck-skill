@@ -1,5 +1,6 @@
 # 状态文件 schema（state/habits.json v1）
 
+> 本文件是 `skills/habit-checkin/references/state-schema.md` 的副本 + §4「人工检查清单」。
 > 权威定义：PRD §3.3。实现：`scripts/state.py`（仅 Python 标准库）。
 > 所有时间计算基于 `user.timezone`（IANA 名），用 `datetime.now(ZoneInfo(tz))`。
 
@@ -65,7 +66,7 @@
 2. **改后 validate**：任何写入前先改内存 dict，写入后跑 `validate(state)` 自检；非空错误清单视为落库失败并回退。
 3. **records 保留 90 天**：`records` 按日期追加，只保留最近 90 天，由 tick 侧清理；`pauses` 不清理。
 
-## 3. 调用契约（scripts/state.py，Task 2 Interfaces）
+## 3. 调用契约（scripts/state.py）
 
 调用方式：宿主用 shell 执行 `python3 -c "..."` 或写小脚本 import 本模块（`scripts/` 需在 `sys.path`）。
 
@@ -89,6 +90,43 @@ apply_checkin(state, habit_id, day: date, note: str, proof: bool, now: datetime)
 
 reset_monthly_freeze(state, today: date) -> None
 # 仅每月 1 号（today.day == 1）把每个 habit 的 freeze_left 重置为 2，其余日期直接返回（当日幂等）
+
+plan_tick(state, now: datetime) -> list[dict]
+# 纯函数，不改 state。action 形如
+# {"type": "nudge|daily_close|weekly_report|level_down", "habit_id": str|None,
+#  "stage": "remind|first|warn|final|lastcall|none", "mood": "...", "slots": {...}}
+# 仅 nudge / weekly_report / level_down 带 mood；daily_close 是静默记账，无 mood、不渲染消息
+
+commit_tick(state, actions, now: datetime) -> None
+# 写回 nudge_state.per_habit_day（count 与 stages 幂等位）、tick_log（裁剪至 50 条）、
+# no_response_days 熔断计数、records 90 天清理；daily_close → stats.current_streak = 0；
+# level_down → 该习惯 level 落为 "chill"
 ```
 
 配套读接口：`load(path) -> dict`、`validate(state) -> list[str]`（空列表=合法）、`save(path, state) -> None`（原子写）、`empty_state(name, tz) -> dict`。
+
+## 4. 人工检查清单（改完状态文件照着勾）
+
+```bash
+cd <仓库根> && python3 scripts/validate_state.py       # 必须退出码 0 且打印 OK
+```
+
+| # | 检查项 | 通过标准 |
+|---|---|---|
+| 1 | 顶层 8 键 | `version, user, global_level, habits, nudge_state, persona_state, achievements, tick_log` 一个不少 |
+| 2 | `user` | `id/name/timezone/quiet_hours` 齐全；`timezone` 是 IANA 名（`ZoneInfo()` 不报错） |
+| 3 | `quiet_hours` | 两个 `"HH:MM"`；跨零点按 `[22:30, 07:00]` 解释（晚间段 + 清晨段都算免打扰） |
+| 4 | `global_level` | ∈ `{strict, chill, free}` |
+| 5 | `habits[]` | 11 个必需字段齐全（`id/name/emoji/schedule/level/require_proof/weekly_goal/stats/records/pauses/freeze_left`） |
+| 6 | `schedule.days` | 取值 0–6（**周日=0**，周一=1）；`schedule.window` 恰好两个 `"HH:MM"` |
+| 7 | `habit.level` | `null` 或 ∈ `{strict, chill, free}`（null = 继承全局档） |
+| 8 | `stats` | 四键齐全，`current_streak ≤ best_streak`，数值非负 |
+| 9 | `records[]` | 每条含 `date/proof/note/late`；`date` 是 ISO 日期且 ≥ 今天 − 90 天 |
+| 10 | `pauses[]` | `from ≤ to`，闭区间；`reason` 非空更佳（不校验） |
+| 11 | `nudge_state.per_habit_day` | 键为 `<habit_id>@<YYYY-MM-DD>`；值 `{"count": int, "stages": [...]}` |
+| 12 | `nudge_state.no_response_days` | 是 `habit_id → int` 的映射（不是单个数字） |
+| 13 | `freeze_left` | 0–2 的整数（仅 chill 档消耗；每月 1 号由 tick 重置） |
+| 14 | `tick_log` | 列表，每项 `{"ts": ISO8601 带偏移, "actions": [...]}`；长度 ≤ 50 |
+| 15 | 原子写残留 | 目录里没有 `habits.json.*.tmp` 残留文件 |
+
+> 手工改完状态文件后，最少要做两件事：跑一次 §4 的校验命令，再跑一次 `python3 scripts/tick_check.py --now "<当前ISO时间>"` 看判定是否符合预期（`--commit` 才会写回）。
