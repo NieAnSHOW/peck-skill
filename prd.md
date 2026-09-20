@@ -171,7 +171,7 @@ peck-food/
   }],
   "nudge_state": {                     // 催促记账：防重复催促、熔断判定
     "per_habit_day": {                 // "h_running@2026-09-20": 本日已催次数/轮次
-      "h_running@2026-09-20": {"count": 1, "stage": "first"}
+      "h_running@2026-09-20": {"count": 1, "stages": ["remind"]}
     },
     "no_response_days": 0              // 连续无打卡回应天数，≥3 触发熔断降档
   },
