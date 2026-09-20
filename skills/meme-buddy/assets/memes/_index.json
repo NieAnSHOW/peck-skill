@@ -1,0 +1,8 @@
+[
+  {"file": "urge/01.svg", "mood": "urge", "caption": "还不打卡？(・`ω´・)", "tags": ["催促"]},
+  {"file": "praise/01.svg", "mood": "praise", "caption": "干得漂亮！(๑•̀ㅂ•́)و✧", "tags": ["夸奖"]},
+  {"file": "disappointed/01.svg", "mood": "disappointed", "caption": "唉…(´-ι＿-｀)", "tags": ["失望"]},
+  {"file": "angry/01.svg", "mood": "angry", "caption": "说好的打卡呢！(╬￣皿￣)=○", "tags": ["暴怒"]},
+  {"file": "cute/01.svg", "mood": "cute", "caption": "求求啦～(｡•ᴗ•｡)♡", "tags": ["卖萌"]},
+  {"file": "celebrate/01.svg", "mood": "celebrate", "caption": "太强了！(ﾉ≧∀≦)ﾉ", "tags": ["庆祝"]}
+]
