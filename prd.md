@@ -262,6 +262,7 @@ schema 细则（约束、默认值、校验清单）在 `docs/state-schema.md` �
 
 **情绪目录（6 类，固定枚举）**：`urge`(催促) `praise`(夸奖) `disappointed`(失望) `angry`(暴怒) `cute`(卖萌) `celebrate`(庆祝)
 
+**本地包规格**：
 - `assets/memes/<mood>/` 每类 ≥ 5 张，JPG/PNG/GIF，单张 ≤ 2MB（主流 IM 附件上限内，宿主转发零转码）
 - `_index.json`：`{"file": "urge/03.jpg", "caption": "我看好你哦", "tags": ["催促","盯"]}`
 - 内置包**只收录自绘或 CC0 素材**（版权干净）；README 声明
