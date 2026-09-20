@@ -171,3 +171,205 @@ def reset_monthly_freeze(state, today):
         return
     for h in state["habits"]:
         h["freeze_left"] = 2
+
+# ---------------------------------------------------------------------------
+# Task 3: tick 判定引擎（轮次 / 幂等 / 免打扰 / 断链 / 周报 / 熔断 / 上限）
+# ---------------------------------------------------------------------------
+
+STAGES_STRICT = ["remind", "first", "warn", "final"]   # 低→高优先级（PRD §4.2「提醒 1 + 催促 3」）
+STAGES_CHILL = ["remind", "lastcall"]                  # 低→高优先级（chill 两轮）
+DAILY_NUDGE_CAP = 4            # PRD §4.2-1：单习惯单日提醒/催促类 ≤ 4 条
+TICK_GRID_MIN = 30             # PRD §3.1/§3.4：cron 每 30 分钟一个 tick
+DAY_CLOSE_TIME = time(23, 30)  # strict 断链日结时刻
+HISTORY_DAYS = 90              # records 只保留最近 90 天（由 tick 清理）
+TICK_LOG_KEEP = 50             # tick_log 只保留最近 50 条
+GLOBAL_KEY_ID = "global"       # 全局动作（周报）在 per_habit_day 里的伪习惯 id
+
+def _at(day, hhmm, tz):
+    return datetime.combine(day, hhmm, tzinfo=tz)
+
+def _quiet_range(state):
+    q = state["user"].get("quiet_hours") or ["22:30", "07:00"]
+    return _parse_hhmm(q[0]), _parse_hhmm(q[1])
+
+def _in_quiet(t, state, evening_only=False):
+    """免打扰区间判断（跨零点）：22:30–07:00 → t >= 22:30 或 t < 07:00。
+
+    tick 闸门与 stage 提前判定用 `evening_only=True`，只拦/只提前晚间段 [22:30, 24:00)：
+    落在清晨段 [00:00, 07:00) 的 stage 只可能来自用户显式配置的 07:00 前窗口
+    （PRD §4.1 默认窗口 07:00–22:00），此时"窗口开启即提醒"正是用户要的
+    （判定表 test_strict_window_open_remind：06:00 窗口首轮 → remind）。
+    """
+    qs, qe = _quiet_range(state)
+    if qs <= qe:                       # 非跨零点配置（如 13:00–15:00）：整段都算
+        return qs <= t < qe
+    if t >= qs:                        # 跨零点区间的晚间段
+        return True
+    return (not evening_only) and t < qe    # 清晨段
+
+def _last_sendable(day, state, tz):
+    """免打扰开始前最后一个可发 tick（30 分钟网格），如 22:30 → 22:00。"""
+    qs, _ = _quiet_range(state)
+    last = (qs.hour * 60 + qs.minute - 1) // TICK_GRID_MIN * TICK_GRID_MIN
+    return datetime.combine(day, time(last // 60, last % 60), tzinfo=tz)
+
+def _rounds(habit, day, level, tz):
+    """该档位当日的轮次表 [(stage, 名义时刻, mood)]。"""
+    w_start, w_end = _window(habit)
+    start, end = _at(day, w_start, tz), _at(day, w_end, tz)
+    if end <= start:
+        end += timedelta(days=1)          # 跨零点窗口（如 21:00–01:00）
+    if level == "strict":
+        return [("remind", start, "urge"),
+                ("first", start + timedelta(hours=1), "urge"),
+                ("warn", start + timedelta(hours=3), "disappointed"),
+                ("final", end - timedelta(minutes=30), "angry")]
+    return [("remind", start + (end - start) / 2, "cute"),     # 窗口中点
+            ("lastcall", end - timedelta(hours=1), "cute")]    # 窗口结束前 1h
+
+def _due_rounds(habit, now, level, sent, tz, state):
+    """本轮到点且未发过的 stage（低→高优先级）。"""
+    ready = []
+    for stage, nominal, mood in _rounds(habit, now.date(), level, tz):
+        if stage in sent:
+            continue
+        if _in_quiet(nominal.time(), state, evening_only=True):
+            # PRD §4.2-3：名义时刻落入免打扰 → strict 提前至免打扰前最后一个 tick；
+            # 宽松/自由档作废（不提前、不补发）。
+            if level != "strict":
+                continue
+            nominal = _last_sendable(nominal.date(), state, tz)
+        if nominal > now:
+            continue
+        ready.append((stage, mood))
+    return ready
+
+def _slots(state, habit, streak, deadline, week_rate, reason=None):
+    """填槽字段与模板变量一一对应：{{name}} {{habit}} {{streak}} {{deadline}} {{week_rate}}。"""
+    s = {"name": state["user"].get("name", ""),
+         "habit": habit.get("name", "") if habit else "",
+         "streak": streak, "deadline": deadline, "week_rate": week_rate}
+    if reason:
+        s["reason"] = reason
+    return s
+
+def _week_rate(habit):
+    return f"{habit.get('stats', {}).get('week_count', 0)}/{habit.get('weekly_goal', 0)} 次"
+
+def _report_rate(state):
+    return "、".join(f"{h.get('name', '')} {h.get('stats', {}).get('week_count', 0)}/{h.get('weekly_goal', 0)}"
+                     for h in state["habits"]) or "无习惯"
+
+def _has_today(habit, today):
+    return today.isoformat() in _records(habit)
+
+def plan_tick(state, now):
+    """纯函数（不改 state）：算出本轮该发的 actions，交给 commit_tick 记账。"""
+    tz = _tz(state)
+    now = now.astimezone(tz)
+    today = now.date()
+    per = state["nudge_state"].get("per_habit_day", {})
+    no_resp = state["nudge_state"].get("no_response_days", {})
+    quiet = _in_quiet(now.time(), state, evening_only=True)
+    actions = []
+
+    for h in state["habits"]:
+        lvl = effective_level(state, h)
+        if lvl == "free":
+            continue                       # free 档（零提醒/不判定）属 M2，不实现
+        key = f"{h['id']}@{today.isoformat()}"
+        entry = per.get(key) or {}
+        sent, count = set(entry.get("stages", [])), entry.get("count", 0)
+        due, checked = is_due(h, today), _has_today(h, today)
+        deadline = h["schedule"]["window"][1]
+
+        # 1. 熔断：连续 3 天零打卡回应 → 降一档（strict → chill），commit 落库
+        if lvl == "strict" and no_resp.get(h["id"], 0) >= 3 \
+                and "level_down" not in sent and not quiet:
+            actions.append({"type": "level_down", "habit_id": h["id"], "stage": "none", "mood": "cute",
+                            "slots": _slots(state, h, h.get("stats", {}).get("current_streak", 0), deadline,
+                                            _week_rate(h), reason="连续 3 天无打卡回应，降为宽松档")})
+
+        # 2/3. 免打扰内不发提醒/催促（PRD §4.2-3 优先级最高）；到点轮次合并为最高优先级一条
+        if due and not checked and not quiet and count < DAILY_NUDGE_CAP:
+            ready = _due_rounds(h, now, lvl, sent, tz, state)
+            if ready:
+                stage, mood = ready[-1]
+                actions.append({"type": "nudge", "habit_id": h["id"], "stage": stage, "mood": mood,
+                                "slots": _slots(state, h, h.get("stats", {}).get("current_streak", 0),
+                                                deadline, _week_rate(h))})
+
+        # 4. 断链日结（仅 strict）：免打扰内照常产出——它是静默记账，用户可见的处刑在次日日报
+        if lvl == "strict" and due and not checked and now.time() >= DAY_CLOSE_TIME \
+                and "daily_close" not in sent:
+            actions.append({"type": "daily_close", "habit_id": h["id"], "stage": "none",
+                            "mood": "disappointed",
+                            "slots": _slots(state, h, h.get("stats", {}).get("current_streak", 0),
+                                            deadline, _week_rate(h))})
+
+    # 5. 周报（全局一条，习惯无关；报告类不受 ≤4 条限制）
+    gkey = f"{GLOBAL_KEY_ID}@{today.isoformat()}"
+    gsent = set((per.get(gkey) or {}).get("stages", []))
+    glvl = state["global_level"]
+    wd, hm = today.weekday(), now.time()
+    if not quiet and "weekly_report" not in gsent and glvl in ("chill", "strict"):
+        hit = (glvl == "chill" and wd == 5 and hm >= time(10, 0)) or \
+              (glvl == "strict" and wd == 6 and hm >= time(21, 0))
+        if hit:
+            best = max([h.get("stats", {}).get("current_streak", 0) for h in state["habits"]] or [0])
+            actions.append({"type": "weekly_report", "habit_id": None, "stage": "none",
+                            "mood": "celebrate" if glvl == "chill" else "angry",
+                            "slots": _slots(state, None, best, "", _report_rate(state))})
+    return actions
+
+def commit_tick(state, actions, now):
+    """把已发出的动作写回 nudge_state / tick_log，并维护 records、熔断计数、每月补卡券。"""
+    tz = _tz(state)
+    now = now.astimezone(tz)
+    today = now.date()
+    per = state["nudge_state"].setdefault("per_habit_day", {})
+    no_resp = state["nudge_state"].setdefault("no_response_days", {})
+    # no_response_days 每日只累加一次（以 tick_log 里当日是否已有 tick 判定）
+    first_tick_today = not any(str(e.get("ts", ""))[:10] == today.isoformat()
+                               for e in state.get("tick_log", []))
+    reset_monthly_freeze(state, today)
+
+    log = []
+    for a in actions:
+        h = find_habit(state, a.get("habit_id")) if a.get("habit_id") else None
+        key = f"{a['habit_id']}@{today.isoformat()}" if a.get("habit_id") \
+            else f"{GLOBAL_KEY_ID}@{today.isoformat()}"
+        entry = per.setdefault(key, {"count": 0, "stages": []})
+        if a["type"] == "nudge":
+            order = STAGES_STRICT if (h is not None and effective_level(state, h) == "strict") \
+                else STAGES_CHILL
+            idx = order.index(a["stage"]) if a["stage"] in order else 0
+            for s in order[:idx + 1]:       # 同轮被合并掉的 stage 一并记位：不补发
+                if s not in entry["stages"]:
+                    entry["stages"].append(s)
+            entry["count"] += 1
+            log.append(f"nudge {a['habit_id']} stage={a['stage']}")
+        else:
+            if a["type"] not in entry["stages"]:
+                entry["stages"].append(a["type"])       # 幂等位用的是动作类型
+            extra = f" reason={a['slots'].get('reason')}" if a["type"] == "level_down" else ""
+            log.append(f"{a['type']} {a.get('habit_id') or GLOBAL_KEY_ID}{extra}")
+            if a["type"] == "level_down" and h is not None:
+                h["level"] = "chill"        # 降档落库（PRD §4.2-2）
+                log.append(f"level {a['habit_id']} -> chill")
+
+    # 熔断计数：当日有 record 归 0，否则（当日首个 tick）累加
+    for h in state["habits"]:
+        if not is_due(h, today):
+            continue
+        if _has_today(h, today):
+            no_resp[h["id"]] = 0
+        elif first_tick_today:
+            no_resp[h["id"]] = no_resp.get(h["id"], 0) + 1
+
+    cutoff = (today - timedelta(days=HISTORY_DAYS)).isoformat()
+    for h in state["habits"]:
+        h["records"] = [r for r in h.get("records", []) if str(r.get("date", "")) >= cutoff]
+
+    state.setdefault("tick_log", []).append({"ts": now.isoformat(), "actions": log})
+    del state["tick_log"][:-TICK_LOG_KEEP]
