@@ -108,7 +108,7 @@ commit_tick(state, actions, now: datetime) -> None
 ## 4. 人工检查清单（改完状态文件照着勾）
 
 ```bash
-cd <仓库根> && python3 scripts/validate_state.py       # 必须退出码 0 且打印 OK
+python3 <技能根>/scripts/validate_state.py              # 技能根 = SKILL.md 所在目录；必须退出码 0 且打印 OK
 ```
 
 | # | 检查项 | 通过标准 |
