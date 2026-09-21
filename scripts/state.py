@@ -390,11 +390,11 @@ def commit_tick(state, actions, now):
 # ---- 状态文件定位（单技能分发版：状态不住在技能目录里） ----
 
 def default_state_path():
-    """PECK_FOOD_STATE 环境变量优先；缺省 ~/.peck-food/habits.json。"""
-    env = os.environ.get("PECK_FOOD_STATE")
+    """PECK_SKILL_STATE 环境变量优先；缺省 ~/.peck-skill/habits.json。"""
+    env = os.environ.get("PECK_SKILL_STATE")
     if env:
         return env
-    return os.path.join(os.path.expanduser("~"), ".peck-food", "habits.json")
+    return os.path.join(os.path.expanduser("~"), ".peck-skill", "habits.json")
 
 
 def ensure_state(path=None):

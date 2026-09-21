@@ -1,4 +1,4 @@
-# 状态文件 schema（~/.peck-food/habits.json v1）
+# 状态文件 schema（~/.peck-skill/habits.json v1）
 
 > 本文件是 `references/state-schema.md` 的副本 + §4「人工检查清单」。
 > 权威定义：PRD §3.3。实现：`scripts/state.py`（仅 Python 标准库）。

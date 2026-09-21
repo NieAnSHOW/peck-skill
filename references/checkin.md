@@ -1,6 +1,6 @@
 # 即时流 · 打卡入口
 
-状态文件：`~/.peck-food/habits.json`（`PECK_FOOD_STATE` 可覆盖；schema 见 `references/state-schema.md`）。
+状态文件：`~/.peck-skill/habits.json`（`PECK_SKILL_STATE` 可覆盖；schema 见 `references/state-schema.md`）。
 所有记账必须先改内存 dict、再 `save()` 原子写回，改完跑 `validate` 自检。
 
 ## 意图 → 动作

@@ -35,17 +35,17 @@ if __name__ == "__main__":
 
 class TestStatePath(unittest.TestCase):
     def tearDown(self):
-        os.environ.pop("PECK_FOOD_STATE", None)
+        os.environ.pop("PECK_SKILL_STATE", None)
 
     def test_env_override_wins(self):
-        os.environ["PECK_FOOD_STATE"] = "/tmp/peck/x.json"
+        os.environ["PECK_SKILL_STATE"] = "/tmp/peck/x.json"
         from state import default_state_path
         self.assertEqual(default_state_path(), "/tmp/peck/x.json")
 
     def test_default_is_home_dotfile(self):
         from state import default_state_path
         self.assertEqual(default_state_path(),
-                         os.path.join(os.path.expanduser("~"), ".peck-food", "habits.json"))
+                         os.path.join(os.path.expanduser("~"), ".peck-skill", "habits.json"))
 
     def test_ensure_state_initializes_valid_file(self):
         import tempfile

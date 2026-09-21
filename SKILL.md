@@ -1,15 +1,15 @@
 ---
-name: peck-food
+name: peck-skill
 description: 习惯打卡监督员（单技能自包含版）。两种场景必须触发：① 用户消息涉及习惯打卡、查询进度、请假、补卡、新建/修改习惯、切换监督档位（严厉/宽松/自由）——如"打卡/今天跑了/睡了✅/我这周怎么样/补昨天的/监督我早睡/改成严厉"；② 定时监督 tick（cron 唤醒）——催促升级、周报、断链日结、档位降级通知。自带表情包配图能力。
 ---
 
-# peck-food · 习惯监督
+# peck-skill · 习惯监督
 
 一个自包含技能：`scripts/`（确定性判定引擎）+ `references/`（人设剧本与协议）+ `assets/`（本地表情包）。复制本文件夹到任意宿主 skills 目录即完成安装。
 
 ## 状态
 
-`~/.peck-food/habits.json`（环境变量 `PECK_FOOD_STATE` 可覆盖；schema 见 `references/state-schema.md`）。文件不存在时脚本会自动初始化。一切时间以状态内 `user.timezone` 为准。
+`~/.peck-skill/habits.json`（环境变量 `PECK_SKILL_STATE` 可覆盖；schema 见 `references/state-schema.md`）。文件不存在时脚本会自动初始化。一切时间以状态内 `user.timezone` 为准。
 
 ## 路由（先判断当前处于哪个流）
 

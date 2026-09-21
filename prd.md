@@ -1,6 +1,6 @@
-# peck-food · 习惯监督 Skills 组合 — 产品需求文档（PRD）
+# peck-skill · 习惯监督 Skills 组合 — 产品需求文档（PRD）
 
-> 版本 v1.1 · 2026-09-21 · 状态：M1 已交付（v1.1：三技能合并为单技能自包含版以便分发）
+> 版本 v1.2 · 2026-09-21 · 状态：M1 已交付（v1.1：三技能合并为单技能自包含版；v1.2：正式更名 peck-food → peck-skill，状态路径/环境变量同步）
 > 本文档由初步想法（原 prd.md）+ 实地调研 + 两轮设计决策推导而来，作为后续开发与验收的唯一依据。
 
 ---
@@ -82,13 +82,13 @@
 宿主 Agent（Hermes / OpenClaw / WorkBuddy ……，用户自有）
 │  原生能力：IM 渠道（微信/飞书/钉钉/…）· 定时任务 · 发消息/图片 · 文件系统
 │
-├── 定时流（每 30 分钟 tick，宿主 cron 附带 peck-food 技能运行）
-│     └─ [peck-food·enforcer 分支] 读状态文件 → 按档位协议判定该做什么
-│           → 需要发催促/夸奖/报告时：[peck-food·meme 分支] 按情绪选图
+├── 定时流（每 30 分钟 tick，宿主 cron 附带 peck-skill 技能运行）
+│     └─ [peck-skill·enforcer 分支] 读状态文件 → 按档位协议判定该做什么
+│           → 需要发催促/夸奖/报告时：[peck-skill·meme 分支] 按情绪选图
 │           → 组装消息 → 宿主投递到用户 IM
 │
 └── 即时流（用户在 IM 里发消息，宿主唤醒 agent）
-      └─ [peck-food·checkin 分支] 意图识别（打卡/查询/请假/补卡/改配置/换档）
+      └─ [peck-skill·checkin 分支] 意图识别（打卡/查询/请假/补卡/改配置/换档）
             → 更新状态文件 → 按当前档位风格反馈（+ 表情包）
 ```
 
@@ -97,7 +97,7 @@
 ### 3.2 技能结构与职责边界（单技能版）
 
 ```
-peck-food/                        # 技能根 = 仓库根，整个文件夹即一个 Agent Skill
+peck-skill/                        # 技能根 = 仓库根，整个文件夹即一个 Agent Skill
 ├── SKILL.md                      # 入口：双场景触发 description + 流路由表 + 硬约束
 ├── references/
 │   ├── enforcer.md               # 定时流协议（tick 6 步编排）
@@ -125,7 +125,7 @@ peck-food/                        # 技能根 = 仓库根，整个文件夹即�
 
 ### 3.3 状态文件 schema（habits.json v1）
 
-单一 JSON 文件，原子写（先写临时文件再 rename），所有时间计算基于 `user.timezone`。**位置：`~/.peck-food/habits.json`（`PECK_FOOD_STATE` 环境变量覆盖；不在技能目录内——技能可被宿主覆盖升级，状态不受影响；缺失时脚本自动初始化）。**
+单一 JSON 文件，原子写（先写临时文件再 rename），所有时间计算基于 `user.timezone`。**位置：`~/.peck-skill/habits.json`（`PECK_SKILL_STATE` 环境变量覆盖；不在技能目录内——技能可被宿主覆盖升级，状态不受影响；缺失时脚本自动初始化）。**
 
 ```jsonc
 {
@@ -182,13 +182,13 @@ schema 细则（约束、默认值、校验清单）在 `docs/state-schema.md` �
 ### 3.4 三条核心数据流
 
 **定时流（tick，每 30 分钟）**：
-1. 宿主 cron 以标准 tick prompt（§5.2 模板）唤醒 agent，附带 peck-food 技能（走 enforcer 分支，按需读 meme 分支）。
+1. 宿主 cron 以标准 tick prompt（§5.2 模板）唤醒 agent，附带 peck-skill 技能（走 enforcer 分支，按需读 meme 分支）。
 2. enforcer 读状态 → 对每个习惯判定：窗口内未打卡？到催促节点了吗？今天断链了吗？到报告时刻了吗？
 3. 判定要发消息 → 按 meme 协议选图 → 按 persona 模板组装 → 输出消息（宿主自动投递 IM）。
 4. 更新 nudge_state / tick_log / persona_state，原子写回。
 
 **即时流（用户消息）**：
-1. 宿主收到用户 IM 消息唤醒 agent，触发 peck-food 技能（走 checkin 分支）。
+1. 宿主收到用户 IM 消息唤醒 agent，触发 peck-skill 技能（走 checkin 分支）。
 2. 意图识别 → 执行（记账/查询/请假/补卡/改配置/换档）→ 更新状态 → 按当前档位人设风格回复（+ 表情包）。
 
 **配置流**：所有配置变更（建习惯/改档位/改窗口）都通过即时流的自然语言完成（"监督我早睡，严厉模式，打卡窗口 21 点到 23 点"），checkin 负责落库。不做配置文件/命令行。
@@ -298,9 +298,9 @@ schema 细则（约束、默认值、校验清单）在 `docs/state-schema.md` �
 ### 5.2 标准 tick prompt（三宿主通用原文，固化在 PRD）
 
 ```text
-执行习惯监督 tick：读取状态文件（默认 ~/.peck-food/habits.json，PECK_FOOD_STATE 可覆盖，缺失自动初始化）。
+执行习惯监督 tick：读取状态文件（默认 ~/.peck-skill/habits.json，PECK_SKILL_STATE 可覆盖，缺失自动初始化）。
 对每个习惯：以 user.timezone 的当前时间为准，判定是否处于打卡窗口、
-是否命中催促轮次/报告时刻/断链日结，按 peck-food 技能 references/enforcer.md 的档位行为协议
+是否命中催促轮次/报告时刻/断链日结，按 peck-skill 技能 references/enforcer.md 的档位行为协议
 决定本轮动作。需发消息时按 references/meme.md 协议配图。严格遵守防骚扰硬约束
 与幂等规则（nudge_state / tick_log）。无动作则只更新 tick_log 并安静退出。
 最后原子写回状态文件。
@@ -308,8 +308,8 @@ schema 细则（约束、默认值、校验清单）在 `docs/state-schema.md` �
 
 ### 5.3 三宿主接线（docs/host-*.md 的规格）
 
-- **Hermes**：`/cron add "every 30m" "<标准 tick prompt，含技能脚本绝对路径>" --skill peck-food`（单技能，无需 --workdir——状态在 ~/.peck-food/）；文档含：安装路径、渠道绑定、无 agent 模式降级说明。
-- **OpenClaw**：skills 置于其 skills 目录；`openclaw automations create "*/30 * * * *" --name peck-food-tick --message "<标准 tick prompt>" --session main`；文档含 delivery 到聊天渠道配置。
+- **Hermes**：`/cron add "every 30m" "<标准 tick prompt，含技能脚本绝对路径>" --skill peck-skill`（单技能，无需 --workdir——状态在 ~/.peck-skill/）；文档含：安装路径、渠道绑定、无 agent 模式降级说明。
+- **OpenClaw**：skills 置于其 skills 目录；`openclaw automations create "*/30 * * * *" --name peck-skill-tick --message "<标准 tick prompt>" --session main`；文档含 delivery 到聊天渠道配置。
 - **WorkBuddy**：Skills 配置导入 + 计划任务绑定 tick prompt；图片发送能力接线时实测，不通则走 kaomoji 降级。
 - 每份指南含 10 分钟验收清单（建习惯→等待 tick→收到催促→打卡→收到反馈）。
 
@@ -327,7 +327,7 @@ schema 细则（约束、默认值、校验清单）在 `docs/state-schema.md` �
 
 | 阶段 | 范围 | 验收标志 |
 |---|---|---|
-| M1 最小闭环 | 单技能 peck-food（checkin 分支全量 + enforcer 分支严厉/宽松两档核心行为：提醒、催促、断链、周报 + meme 本地包；v1.1 由三技能合并）+ host-hermes.md | 在 Hermes 实例上完成 §8 场景 1–5 |
+| M1 最小闭环 | 单技能 peck-skill（checkin 分支全量 + enforcer 分支严厉/宽松两档核心行为：提醒、催促、断链、周报 + meme 本地包；v1.1 由三技能合并）+ host-hermes.md | 在 Hermes 实例上完成 §8 场景 1–5 |
 | M2 完全体 | 自由档、日报/公审、成就、催促熔断、补卡券、在线 provider（giphy/alapi）、host-openclaw.md、host-workbuddy.md、纯脚本 tick 降级 | §8 全场景 + 双宿主接线验收 |
 | M3 打磨 | 模板池扩充（每档 12+）、彩蛋（节日/周末特别行为）、WorkBuddy 发图实测补齐、多人预留字段文档化 | 用户实测两周无厌烦反馈 |
 

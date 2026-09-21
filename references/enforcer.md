@@ -3,7 +3,7 @@
 每次 tick 严格按以下顺序：
 
 1. 执行 `python3 scripts/tick_check.py --commit --now <当前ISO时间>`（在技能根目录下；
-   状态文件默认 `~/.peck-food/habits.json`，`PECK_FOOD_STATE` 可覆盖），
+   状态文件默认 `~/.peck-skill/habits.json`，`PECK_SKILL_STATE` 可覆盖），
    得到 `{"now":..., "actions":[...]}`。**不要自行心算时间或轮次——脚本是唯一事实源。**
 2. actions 为空 → 本轮结束，不输出任何消息。
 3. 对每个 action：

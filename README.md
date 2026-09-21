@@ -1,4 +1,4 @@
-# peck-food · 习惯监督技能
+# peck-skill · 习惯监督技能
 
 一个**自包含**的 Agent Skill：通过宿主 Agent（Hermes / OpenClaw / WorkBuddy 等支持 SKILL.md 标准 + 定时任务 + IM 通道的产品）对你做**有趣、可调档**的习惯打卡监督——严厉（教导主任·四轮催促）/ 宽松（损友·周目标+补卡券），配表情包，断网降级为 kaomoji。
 
@@ -15,12 +15,12 @@
 
 ```bash
 # 整个仓库就是一个技能文件夹：拷进宿主 skills 目录即完成
-cp -r <peck-food 目录> ~/.hermes/skills/peck-food     # Hermes 示例
+cp -r <peck-skill 目录> ~/.hermes/skills/peck-skill     # Hermes 示例
 # 或 git clone
-git clone <repo> ~/.hermes/skills/peck-food
+git clone <repo> ~/.hermes/skills/peck-skill
 ```
 
-状态文件在**技能目录之外**：`~/.peck-food/habits.json`（`PECK_FOOD_STATE` 环境变量可覆盖），首次运行自动初始化——技能目录可被宿主随意升级/覆盖，打卡数据不受影响。
+状态文件在**技能目录之外**：`~/.peck-skill/habits.json`（`PECK_SKILL_STATE` 环境变量可覆盖），首次运行自动初始化——技能目录可被宿主随意升级/覆盖，打卡数据不受影响。
 
 接线（cron 定时监督）见 `docs/host-hermes.md`，10 分钟验收清单也在里面。
 
