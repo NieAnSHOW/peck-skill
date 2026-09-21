@@ -375,3 +375,22 @@ def commit_tick(state, actions, now):
 
     state.setdefault("tick_log", []).append({"ts": now.isoformat(), "actions": log})
     del state["tick_log"][:-TICK_LOG_KEEP]
+
+
+# ---- 状态文件定位（单技能分发版：状态不住在技能目录里） ----
+
+def default_state_path():
+    """PECK_FOOD_STATE 环境变量优先；缺省 ~/.peck-food/habits.json。"""
+    env = os.environ.get("PECK_FOOD_STATE")
+    if env:
+        return env
+    return os.path.join(os.path.expanduser("~"), ".peck-food", "habits.json")
+
+
+def ensure_state(path=None):
+    """路径不存在时初始化合法空状态（首次运行友好）。"""
+    p = path or default_state_path()
+    if not os.path.exists(p):
+        os.makedirs(os.path.dirname(os.path.abspath(p)), exist_ok=True)
+        save(p, empty_state("老板", "Asia/Shanghai"))
+    return p

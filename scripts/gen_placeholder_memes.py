@@ -7,7 +7,7 @@ MOODS = {"urge": ("催促", "还不打卡？(・`ω´・)"),
          "cute": ("卖萌", "求求啦～(｡•ᴗ•｡)♡"),
          "celebrate": ("庆祝", "太强了！(ﾉ≧∀≦)ﾉ")}
 BASE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                    "skills", "meme-buddy", "assets", "memes")
+                    "assets", "memes")
 def main():
     for mood, (zh, kao) in MOODS.items():
         d = os.path.join(BASE, mood); os.makedirs(d, exist_ok=True)

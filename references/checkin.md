@@ -1,11 +1,6 @@
----
-name: habit-checkin
-description: 当用户消息涉及习惯打卡、查询打卡进度、请假、补卡、新建或修改习惯配置、切换监督档位（严厉/宽松/自由）时使用。用户说"打卡/今天跑了/睡了✅/我这周怎么样/补昨天的/监督我早睡/改成严厉"等都必须触发本 skill。
----
+# 即时流 · 打卡入口
 
-# 习惯打卡入口
-
-状态文件：仓库根的 `state/habits.json`（schema 见 references/state-schema.md）。
+状态文件：`~/.peck-food/habits.json`（`PECK_FOOD_STATE` 可覆盖；schema 见 `references/state-schema.md`）。
 所有记账必须先改内存 dict、再 `save()` 原子写回，改完跑 `validate` 自检。
 
 ## 意图 → 动作
@@ -24,5 +19,5 @@ description: 当用户消息涉及习惯打卡、查询打卡进度、请假、�
 ## 回复风格（PRD §4.2/§4.3）
 - strict（教导主任）：毒舌简短；打卡成功 ≤2 句 + celebrate 图。
 - chill（损友）：热烈吹捧 ≤2 句 + praise/cute 图。
-- 打卡成功后调用 meme-buddy 配图；自由反馈不超 2 句。
+- 打卡成功后按 `references/meme.md` 配图；自由反馈不超 2 句。
 - 删除习惯需二次确认；一切配置变更回显摘要。

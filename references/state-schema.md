@@ -1,4 +1,4 @@
-# 状态文件 schema（state/habits.json v1）
+# 状态文件 schema（~/.peck-food/habits.json v1）
 
 > 权威定义：PRD §3.3。实现：`scripts/state.py`（仅 Python 标准库）。
 > 所有时间计算基于 `user.timezone`（IANA 名），用 `datetime.now(ZoneInfo(tz))`。

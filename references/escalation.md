@@ -66,7 +66,7 @@
 
 - 计数：`nudge_state.no_response_days[habit_id]`——当日有 record 归 0，否则 +1。
 - 某习惯 `no_response_days ≥ 3` 且有效档位为 strict → 产出 `level_down` 动作；`--commit` 时脚本已把该习惯写为 `level == "chill"`，并在 slot 里给出理由。
-- 你的职责：以当前人设告知用户（例：「连续 3 天没理我，先撤为敬，改宽松档了」），不再追问、不改回档位。用户手动调回由 habit-checkin 处理。
+- 你的职责：以当前人设告知用户（例：「连续 3 天没理我，先撤为敬，改宽松档了」），不再追问、不改回档位。用户手动调回由 checkin 分支处理。
 - 档位阶梯 `strict → chill → free`；M1 只在 strict→chill 上触发（free 档为 M2，不在 M1 实现范围）。
 
 ## 6. chill 周目标制判定
@@ -79,7 +79,7 @@
 
 `urge` / `praise` / `disappointed` / `angry` / `cute` / `celebrate`
 
-映射关系：nudge 用脚本给出的 `action.mood`；`weekly_report` → chill `celebrate` / strict `angry`；`level_down` → `cute`；打卡成功（habit-checkin 侧）→ `praise`；**`daily_close` 无 mood（不渲染消息、不配图）**。
+映射关系：nudge 用脚本给出的 `action.mood`；`weekly_report` → chill `celebrate` / strict `angry`；`level_down` → `cute`；打卡成功（checkin 分支侧）→ `praise`；**`daily_close` 无 mood（不渲染消息、不配图）**。
 
 ## 8. 模板变量契约
 

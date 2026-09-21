@@ -1,6 +1,6 @@
 # peck-food · 习惯监督 Skills 组合 — 产品需求文档（PRD）
 
-> 版本 v1.0 · 2026-09-20 · 状态：待评审
+> 版本 v1.1 · 2026-09-21 · 状态：M1 已交付（v1.1：三技能合并为单技能自包含版以便分发）
 > 本文档由初步想法（原 prd.md）+ 实地调研 + 两轮设计决策推导而来，作为后续开发与验收的唯一依据。
 
 ---
@@ -82,59 +82,50 @@
 宿主 Agent（Hermes / OpenClaw / WorkBuddy ……，用户自有）
 │  原生能力：IM 渠道（微信/飞书/钉钉/…）· 定时任务 · 发消息/图片 · 文件系统
 │
-├── 定时流（每 30 分钟 tick，宿主 cron 附带 skills 运行）
-│     └─ [habit-enforcer] 读 state/habits.json → 按档位协议判定该做什么
-│           → 需要发催促/夸奖/报告时：[meme-buddy] 按情绪选图
+├── 定时流（每 30 分钟 tick，宿主 cron 附带 peck-food 技能运行）
+│     └─ [peck-food·enforcer 分支] 读状态文件 → 按档位协议判定该做什么
+│           → 需要发催促/夸奖/报告时：[peck-food·meme 分支] 按情绪选图
 │           → 组装消息 → 宿主投递到用户 IM
 │
 └── 即时流（用户在 IM 里发消息，宿主唤醒 agent）
-      └─ [habit-checkin] 意图识别（打卡/查询/请假/补卡/改配置/换档）
-            → 更新 state/habits.json → 按当前档位风格反馈（+ 表情包）
+      └─ [peck-food·checkin 分支] 意图识别（打卡/查询/请假/补卡/改配置/换档）
+            → 更新状态文件 → 按当前档位风格反馈（+ 表情包）
 ```
 
-三个 skill 之间**只通过状态文件和文件系统协作**，不引入任何进程间机制——保持对最笨宿主的兼容。
+**单技能自包含**（v1.1 结构变更，原为三个独立 skill，为便于分发改合并）：一个文件夹携带全部协议、脚本与素材，复制即安装；两个流靠 SKILL.md 内的路由表分流到对应 references/ 文档。全部协作仍**只通过状态文件和文件系统**，不引入任何进程间机制——保持对最笨宿主的兼容。
 
-### 3.2 Skills 清单与职责边界
+### 3.2 技能结构与职责边界（单技能版）
 
 ```
-peck-food/
-├── skills/
-│   ├── habit-enforcer/            # 监督引擎（定时流的全部行为协议）
-│   │   ├── SKILL.md               # 档位判定逻辑、tick 流程、消息组装规则
-│   │   └── references/
-│   │       ├── personas.md        # 三档人设剧本 + 催促模板池（各 8-12 条）
-│   │       ├── escalation.md      # 催促升级与熔断规则
-│   │       └── achievements.md    # 成就触发规则表
-│   ├── habit-checkin/             # 打卡入口（即时流的全部行为协议）
-│   │   ├── SKILL.md               # 意图识别、打卡记账规则、凭证、请假/补卡
-│   │   └── references/
-│   │       └── state-schema.md    # 状态文件完整 schema 与读写约定
-│   └── meme-buddy/                # 表情包引擎（通用，被前两者调用，也可独立使用）
-│       ├── SKILL.md               # 情绪→选图协议、降级链
-│       ├── assets/memes/          # 内置表情包（见 §4.5）
-│       │   ├── _index.json        # 全量索引：mood/关键词/caption
-│       │   ├── urge/  praise/  disappointed/  angry/  cute/  celebrate/
-│       │   └── user/              # 用户自备目录（丢图即生效）
-│       └── providers/
-│           ├── giphy.md           # 在线源接入说明（关键词映射+API+校验）
-│           └── alapi.md
-├── state/habits.json              # 唯一状态文件（schema 见 §3.3）
+peck-food/                        # 技能根 = 仓库根，整个文件夹即一个 Agent Skill
+├── SKILL.md                      # 入口：双场景触发 description + 流路由表 + 硬约束
+├── references/
+│   ├── enforcer.md               # 定时流协议（tick 6 步编排）
+│   ├── checkin.md                # 即时流协议（五类意图表 + 回复风格）
+│   ├── meme.md                   # 表情包协议（情绪→选图、降级链）
+│   ├── personas.md               # 两档人设剧本 + 催促模板池（各 10 条）
+│   ├── escalation.md             # 催促升级/免打扰/熔断/幂等规则
+│   └── state-schema.md           # 状态文件完整 schema 与读写约定
+├── scripts/
+│   ├── state.py                  # 状态库 + 判定引擎（纯标准库）
+│   ├── tick_check.py             # tick CLI（--now/--commit/--state）
+│   ├── validate_state.py         # schema 校验 CLI
+│   └── gen_placeholder_memes.py  # 占位表情生成（可重复执行）
+├── assets/memes/                 # 内置表情包（§4.5）
+│   ├── _index.json               # 全量索引：mood/关键词/caption
+│   ├── urge/  praise/  disappointed/  angry/  cute/  celebrate/
+│   └── user/                     # 用户自备目录（丢图即生效）
 ├── docs/
-│   ├── host-hermes.md             # 宿主接线指南 × 3（tick prompt 模板原文）
-│   ├── host-openclaw.md
-│   ├── host-workbuddy.md
-│   └── state-schema.md            # schema 单独文档（供人工检查）
-└── README.md                      # 安装、快速开始、能力假设 H1-H4 声明
+│   ├── host-hermes.md            # 宿主接线指南（M1 交付 Hermes；openclaw/workbuddy 为 M2）
+│   └── state-schema.md           # schema 单独文档（含人工检查清单）
+└── README.md                     # 安装（复制即分发）、能力假设 H1-H4 声明
 ```
 
-**触发路由**（靠 description 字段，写清"何时用我"）：
-- `habit-enforcer`："仅在定时/cron tick 或生成周期报告时使用；处理催促、断链审判、成就颁发"
-- `habit-checkin`："当用户消息涉及习惯打卡、查询进度、请假、补卡、修改习惯配置、切换监督档位时使用"
-- `meme-buddy`："当需要挑一张符合情绪的表情包发给别人时使用（催促/夸奖/庆祝/失望/卖萌/暴怒）"
+**触发路由**：单条 description 同时覆盖两个场景——"用户消息涉及习惯打卡/查询/请假/补卡/改配置/换档，或定时监督 tick/周报/日结时使用"。进入后由 SKILL.md 路由表按流分流：即时流→checkin.md，定时流→enforcer.md，配图→meme.md。原三技能版的"上下文按流加载"由 progressive disclosure（按需读 references/）等价保留。
 
 ### 3.3 状态文件 schema（habits.json v1）
 
-单一 JSON 文件，原子写（先写临时文件再 rename），所有时间计算基于 `user.timezone`。
+单一 JSON 文件，原子写（先写临时文件再 rename），所有时间计算基于 `user.timezone`。**位置：`~/.peck-food/habits.json`（`PECK_FOOD_STATE` 环境变量覆盖；不在技能目录内——技能可被宿主覆盖升级，状态不受影响；缺失时脚本自动初始化）。**
 
 ```jsonc
 {
@@ -191,13 +182,13 @@ schema 细则（约束、默认值、校验清单）在 `docs/state-schema.md` �
 ### 3.4 三条核心数据流
 
 **定时流（tick，每 30 分钟）**：
-1. 宿主 cron 以标准 tick prompt（§5.2 模板）唤醒 agent，附带 habit-enforcer（+ 按需 meme-buddy）。
+1. 宿主 cron 以标准 tick prompt（§5.2 模板）唤醒 agent，附带 peck-food 技能（走 enforcer 分支，按需读 meme 分支）。
 2. enforcer 读状态 → 对每个习惯判定：窗口内未打卡？到催促节点了吗？今天断链了吗？到报告时刻了吗？
-3. 判定要发消息 → 调 meme-buddy 协议选图 → 按 persona 模板组装 → 输出消息（宿主自动投递 IM）。
+3. 判定要发消息 → 按 meme 协议选图 → 按 persona 模板组装 → 输出消息（宿主自动投递 IM）。
 4. 更新 nudge_state / tick_log / persona_state，原子写回。
 
 **即时流（用户消息）**：
-1. 宿主收到用户 IM 消息唤醒 agent，触发 habit-checkin。
+1. 宿主收到用户 IM 消息唤醒 agent，触发 peck-food 技能（走 checkin 分支）。
 2. 意图识别 → 执行（记账/查询/请假/补卡/改配置/换档）→ 更新状态 → 按当前档位人设风格回复（+ 表情包）。
 
 **配置流**：所有配置变更（建习惯/改档位/改窗口）都通过即时流的自然语言完成（"监督我早睡，严厉模式，打卡窗口 21 点到 23 点"），checkin 负责落库。不做配置文件/命令行。
@@ -237,7 +228,7 @@ schema 细则（约束、默认值、校验清单）在 `docs/state-schema.md` �
 3. 免打扰时段（默认 22:30–07:00，可配置）优先级最高：期间不主动发任何消息。催促时刻若落入免打扰：严厉档提前至免打扰开始前最后一个 tick 发出，宽松/自由档作废。晚间习惯（如 21:00–23:00 窗口）的"窗口结束前"轮次由此自然落在 22:30 前或作废，属预期行为。
 4. tick 幂等：同一习惯同日同轮次（stage）只发一次，以 `nudge_state` 为准；tick 重复执行不产生重复消息。
 
-### 4.3 打卡交互（habit-checkin）
+### 4.3 打卡交互（checkin 分支）
 
 **支持的意图**（一条消息可复合）：
 - 打卡："跑步 5 公里 ✅"、"今天喝水达标了"（含日期推断：默认今天；"昨天"需宽松档+补卡券）
@@ -251,14 +242,14 @@ schema 细则（约束、默认值、校验清单）在 `docs/state-schema.md` �
 
 **回复风格**：由有效档位人设决定（§4.2 表）；打卡成功的反馈消息 ≤ 2 句 + 表情包（自由档仅 1 句无图）。
 
-### 4.4 催促/反馈消息系统（habit-enforcer）
+### 4.4 催促/反馈消息系统（enforcer 分支）
 
 - **模板池**：每档 persona 8–12 条消息模板，含结构变体（先图后文 / 先文后图 / 纯文字 / 纯图 + 一句话）。模板是"骨架 + 填槽"（称呼、习惯名、streak 数字、剩余时间），允许 agent 在骨架内自由发挥，不允许偏离人设。
 - **短期去重**：`persona_state.recent_templates`（最近 5 条）内的模板不再选用；全部用遍后清空重来。
 - **催促升级**（严厉档三轮的 stage 机）：`first → warn → final`，每个 stage 对应独立模板子池与表情包情绪（urge → disappointed → angry）。
 - **时间计算**：所有"窗口相对时间"由 tick 内基于 `user.timezone` 计算，cron 本身只是 30 分钟粒度的唤醒器。
 
-### 4.5 表情包引擎（meme-buddy）
+### 4.5 表情包引擎（meme 分支）
 
 **情绪目录（6 类，固定枚举）**：`urge`(催促) `praise`(夸奖) `disappointed`(失望) `angry`(暴怒) `cute`(卖萌) `celebrate`(庆祝)
 
@@ -301,23 +292,23 @@ schema 细则（约束、默认值、校验清单）在 `docs/state-schema.md` �
 
 ### 5.1 能力假设与降级
 
-- **H1–H4**（§2.2）：README 显式声明；不满足 H3 发图能力的宿主 → meme-buddy 降级链自动落到 kaomoji（§4.5）。
+- **H1–H4**（§2.2）：README 显式声明；不满足 H3 发图能力的宿主 → meme 协议降级链自动落到 kaomoji（§4.5）。
 - **H2 不足**（宿主定时器粒度 > 30min）：允许 1h tick，enforcer 按实际 tick 时刻就近补发（幂等由 stage 保证）。
 
 ### 5.2 标准 tick prompt（三宿主通用原文，固化在 PRD）
 
 ```text
-执行习惯监督 tick：读取 state/habits.json（相对本仓库根目录）。
+执行习惯监督 tick：读取状态文件（默认 ~/.peck-food/habits.json，PECK_FOOD_STATE 可覆盖，缺失自动初始化）。
 对每个习惯：以 user.timezone 的当前时间为准，判定是否处于打卡窗口、
-是否命中催促轮次/报告时刻/断链日结，按 habit-enforcer 的档位行为协议
-决定本轮动作。需发消息时按 meme-buddy 协议配图。严格遵守防骚扰硬约束
+是否命中催促轮次/报告时刻/断链日结，按 peck-food 技能 references/enforcer.md 的档位行为协议
+决定本轮动作。需发消息时按 references/meme.md 协议配图。严格遵守防骚扰硬约束
 与幂等规则（nudge_state / tick_log）。无动作则只更新 tick_log 并安静退出。
 最后原子写回状态文件。
 ```
 
 ### 5.3 三宿主接线（docs/host-*.md 的规格）
 
-- **Hermes**：`/cron add "every 30m" "<标准 tick prompt>" --skill habit-enforcer --skill meme-buddy --workdir /path/to/peck-food`；文档含：安装 skills 路径、渠道绑定、无 agent 模式降级说明。
+- **Hermes**：`/cron add "every 30m" "<标准 tick prompt，含技能脚本绝对路径>" --skill peck-food`（单技能，无需 --workdir——状态在 ~/.peck-food/）；文档含：安装路径、渠道绑定、无 agent 模式降级说明。
 - **OpenClaw**：skills 置于其 skills 目录；`openclaw automations create "*/30 * * * *" --name peck-food-tick --message "<标准 tick prompt>" --session main`；文档含 delivery 到聊天渠道配置。
 - **WorkBuddy**：Skills 配置导入 + 计划任务绑定 tick prompt；图片发送能力接线时实测，不通则走 kaomoji 降级。
 - 每份指南含 10 分钟验收清单（建习惯→等待 tick→收到催促→打卡→收到反馈）。
@@ -329,7 +320,7 @@ schema 细则（约束、默认值、校验清单）在 `docs/state-schema.md` �
 1. **隐私**：状态只存本地 JSON（明文，不含凭证原图）；不引入任何第三方上报；在线表情包 provider 启用时仅搜索关键词出网。
 2. **成本**：30min tick × 轻量 LLM 调用；提供**纯脚本 tick 降级模式**（Hermes 无 agent 模式 / OpenClaw script payload：脚本判定+固定模板直发，零 LLM）——文档给出切换方法，适合长期挂着省钱的用户。
 3. **可靠性**：状态原子写；tick 幂等；records 只留 90 天（启动时清理）；tick 异常不写坏状态（先读后写、失败放弃本轮）。
-4. **兼容性底线**：即使 meme-buddy 整体不可用，enforcer/checkin 的文字行为必须完整（图片是增强不是依赖）。
+4. **兼容性底线**：即使 meme 分支整体不可用，enforcer/checkin 分支的文字行为必须完整（图片是增强不是依赖）。
 5. **时区**：全部以 `user.timezone` 计算；跨时区出差场景 v1 不处理（用户可自行改字段）。
 
 ## 7. 里程碑
