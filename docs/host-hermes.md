@@ -43,6 +43,7 @@ ls ~/.hermes/skills/peck-skill/SKILL.md   # 确认入口存在
 | 6 | 连续 3 天不理催促 | 自动降档 chill 并收到"先撤为敬"通知 |
 | 7 | chill 档说"补昨天的跑步" | freeze_left 扣 1、本周计数 +1；券尽（<1）则拒绝并解释 |
 | 8 | 表情包降级：临时把 `assets/memes/` 改名 | 消息照发，图变成 kaomoji 文字表情（图是增强不是依赖） |
+| 8b | 联网搜图：清空 `~/.peck-skill/memes/`（或首次使用）后触发一次带图催促 | agent 联网搜到图 → `save_meme.py` 打印 `{"ok": true, ...}` → 图片发出且出现在 `~/.peck-skill/memes/<mood>/`；断网重试一次应降级 kaomoji |
 | 9 | schema 校验：故意删掉状态文件里一个顶层键 | `validate_state.py` 退出码 1 并列出错误，修回后回到 `OK` |
 
 调试技巧：把窗口起点临时改成"当前时间 −1h"，下一个 tick 就能看到 first 轮催促，验完改回。

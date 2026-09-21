@@ -30,5 +30,6 @@ description: 习惯打卡监督员（单技能自包含版）。两种场景必�
 | `python3 scripts/tick_check.py [--now ISO] [--commit]` | tick 判定引擎：输出本轮动作 JSON；`--commit` 落库 |
 | `python3 scripts/validate_state.py` | schema 校验（OK 退出 0） |
 | `python3 scripts/gen_placeholder_memes.py` | 重新生成占位表情 SVG（可重复执行） |
+| `python3 scripts/save_meme.py --mood <枚举> --file <图>` | 联网搜到的表情包入库：魔数校验、哈希去重落 `~/.peck-skill/memes/`、更新索引 |
 
 状态库函数（`load/save/validate/apply_checkin/plan_tick/commit_tick` 等）在 `scripts/state.py`，签名见 `references/state-schema.md`。

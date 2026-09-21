@@ -31,17 +31,19 @@ git clone <repo> ~/.hermes/skills/peck-skill
 | `python3 scripts/tick_check.py [--now ISO] [--commit] [--state PATH]` | tick 判定引擎：输出本轮动作 JSON；`--commit` 落库 |
 | `python3 scripts/validate_state.py [path]` | schema 校验：合法打印 `OK` 退出 0，非法列错误退出 1 |
 | `python3 scripts/gen_placeholder_memes.py` | 重新生成占位表情 SVG（可重复执行） |
+| `python3 scripts/save_meme.py --mood <枚举> --file <图> [--caption C] [--tags a,b]` | 表情包入库：魔数校验、哈希去重落 `~/.peck-skill/memes/`、更新 `_index.json` |
 
 ## 表情包版权
 
 内置表情包（`assets/memes/<mood>/`）**全部是自绘占位 SVG**（纯文本生成，code 即素材），不涉第三方版权，可自由替换/删除。
 
 - 想要真图：把你的图丢进 `assets/memes/user/`，丢图即生效（首次使用时补一句情绪标签即可进 `_index.json`）。
+- **联网搜图**：本地包缺图时，agent 会按回复关键词联网搜表情包，经 `scripts/save_meme.py` 校验去重后落盘到 `~/.peck-skill/memes/`（与状态文件同目录，重装技能不丢），下次优先复用；全程失败则降级 kaomoji，图始终是增强不是依赖。
 
 ## 范围
 
 - **M1（当前）**：严厉/宽松两档全行为（四轮催促/免打扰/熔断降档/补卡券/周报）、本地表情包 + kaomoji 降级、Hermes 接线。
-- **M2 预告**：自由档、每日日报、成就系统、在线表情包源（Giphy/ALAPI）、OpenClaw/WorkBuddy 接线。
+- **M2 预告**：自由档、每日日报、成就系统、在线表情包 API 源（Giphy/ALAPI；关键词联网搜图已先行支持，见 `references/meme.md`）、OpenClaw/WorkBuddy 接线。
 
 ## License
 
