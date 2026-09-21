@@ -220,18 +220,28 @@ def _rounds(habit, day, level, tz):
     if end <= start:
         end += timedelta(days=1)          # 跨零点窗口（如 21:00–01:00）
     if level == "strict":
+        # warn 名义 = 窗口起 +3h，但必须留在窗口内且早于 final（窗口末 -30min），
+        # 否则窄窗口（窗口长 < 3.5h）下 warn 会被 final 吞掉，催促进程从 4 级退化成 3 级。
+        warn_at = min(start + timedelta(hours=3), end - timedelta(hours=1))
         return [("remind", start, "urge"),
                 ("first", start + timedelta(hours=1), "urge"),
-                ("warn", start + timedelta(hours=3), "disappointed"),
+                ("warn", warn_at, "disappointed"),
                 ("final", end - timedelta(minutes=30), "angry")]
     return [("remind", start + (end - start) / 2, "cute"),     # 窗口中点
             ("lastcall", end - timedelta(hours=1), "cute")]    # 窗口结束前 1h
 
 def _due_rounds(habit, now, level, sent, tz, state):
-    """本轮到点且未发过的 stage（低→高优先级）。"""
+    """本轮到点且未发过的 stage（低→高优先级）。
+
+    已发过更高优先级的 stage 之后，不再补发更低优先级：窄窗口（窗口长 < 3.5h）下
+    warn 的名义时刻（窗口起 +3h）会落在 final（窗口末 -30min）之后，若不过滤就会出现
+    "最后通牒"发完又来一句"我再提醒一次"的倒序催促。
+    """
+    rounds = _rounds(habit, now.date(), level, tz)
+    max_sent = max((i for i, (s, _, _) in enumerate(rounds) if s in sent), default=-1)
     ready = []
-    for stage, nominal, mood in _rounds(habit, now.date(), level, tz):
-        if stage in sent:
+    for idx, (stage, nominal, mood) in enumerate(rounds):
+        if stage in sent or idx <= max_sent:
             continue
         if _in_quiet(nominal.time(), state):
             # PRD §4.2-3：名义时刻落入免打扰 → strict 顺延/提前到免打扰外的 tick；
