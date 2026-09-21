@@ -42,3 +42,7 @@ git clone <repo> ~/.hermes/skills/peck-skill
 
 - **M1（当前）**：严厉/宽松两档全行为（四轮催促/免打扰/熔断降档/补卡券/周报）、本地表情包 + kaomoji 降级、Hermes 接线。
 - **M2 预告**：自由档、每日日报、成就系统、在线表情包源（Giphy/ALAPI）、OpenClaw/WorkBuddy 接线。
+
+## License
+
+[MIT](LICENSE) © 2026 NieAnSHOW
